@@ -369,8 +369,66 @@ class ApexCore {
       contracts.push(evaluation);
     }
 
+    // ── DIGIT PSYCHOLOGY (observed Over / Under configurations) ───────
+    const psychology = psychologyEngine(stats, pressure, bars, digitIntel);
+    engineHealth.set(
+      "Digit psychology",
+      digits.length >= 400 ? "ONLINE" : "INSUFFICIENT DATA",
+      psychology.summary,
+    );
+
+    // ── SPECIAL DIGIT RISK (0/1/8/9), market level ────────────────────
+    const profile = marketProfiles.get(symbol);
+    const adverse: Record<number, number> = {};
+    if (profile) {
+      for (const [d, c] of Object.entries(profile.dangerousDigits)) adverse[Number(d)] = c;
+    }
+    const specialDigits = specialDigitRisk(digitIntel, bars, [], adverse);
+
+    // ── LOSING-DIGIT EXPOSURE per contract, and its danger effect ─────
+    for (const c of contracts) {
+      const exposure = losingDigitExposure(digits, c.winners, digitIntel, bars, c.label);
+      const special = specialDigitRisk(
+        digitIntel,
+        bars,
+        exposure.losers,
+        adverse,
+      );
+      c.exposure = exposure;
+      c.specialRisk = special;
+      // A favourable aggregate percentage never overrides a dangerous losing
+      // digit: exposure and special-digit risk raise contract danger directly.
+      c.danger = Math.round(
+        Math.max(
+          c.danger,
+          Math.min(100, exposure.losingDigitExposure * 0.75 + special.exposureRisk * 0.35),
+        ),
+      );
+      c.alerts = [...c.alerts, ...exposure.alerts, ...special.alerts];
+      if (exposure.state === "SEVERE" || special.state === "HOSTILE") {
+        c.quality = Math.max(0, c.quality - 12);
+        c.opportunity = Math.max(0, c.opportunity - 10);
+      }
+    }
+
     contracts.sort((a, b) => b.opportunity - a.opportunity);
     const best = contracts[0] ?? null;
+
+    // ── FLUCTUATION (is the evidence holding still?) ──────────────────
+    fluctuationTracker.observe(symbol, {
+      leader: best ? best.id : "NONE",
+      edge: best ? Math.round(best.compositeEdge * 10) / 10 : 0,
+      confidence: best ? Math.round(best.confidence) : 0,
+      psychologyAligned: psychology.over.aligned || psychology.under.aligned,
+      rank: contracts.findIndex((c) => c.id === best?.id),
+    });
+    const fluctuation = fluctuationTracker.report(symbol);
+    if (fluctuation.state === "UNSTABLE" || fluctuation.state === "CHAOTIC") {
+      for (const c of contracts) {
+        c.quality = Math.max(0, c.quality - Math.round(fluctuation.score * 0.12));
+        c.danger = Math.min(100, c.danger + Math.round(fluctuation.score * 0.2));
+      }
+    }
 
     const battle = buildBattle(
       symbol,
@@ -404,9 +462,12 @@ class ApexCore {
           0,
           Math.min(
             100,
-            anomaly.score * 0.35 +
-              (volatility.ratio > 1 ? (volatility.ratio - 1) * 55 : 0) +
-              (best?.threat ? best.threat.groupThreat * 0.25 : 0) +
+            anomaly.score * 0.3 +
+              (volatility.ratio > 1 ? (volatility.ratio - 1) * 50 : 0) +
+              (best?.threat ? best.threat.groupThreat * 0.2 : 0) +
+              (best?.exposure ? best.exposure.losingDigitExposure * 0.25 : 0) +
+              specialDigits.marketRisk * 0.12 +
+              fluctuation.score * 0.18 +
               (dataState === "STALE" ? 40 : 0),
           ),
         ),
@@ -419,6 +480,9 @@ class ApexCore {
       criticalReport,
       battle,
       deepTicks: digits.length,
+      psychology,
+      specialDigits,
+      fluctuation,
     };
     this.intel.set(symbol, intel);
 
@@ -426,6 +490,28 @@ class ApexCore {
     // open at most one locked paper position per market and resolves it only
     // on the actual expiry digit.
     apexSimulator.consider(intel, engineAgreement);
+
+    // ── MARKET-SPECIFIC LEARNING (causal) ─────────────────────────────
+    // Capture the state that existed at ENTRY time BEFORE any outcome is
+    // known, then ingest resolutions. Learning can never look ahead.
+    const simState = apexSimulator.getState(symbol);
+    const openTrade = simState?.openTrade ?? null;
+    if (openTrade) {
+      const c = contracts.find((x) => x.id === openTrade.contract) ?? best;
+      marketProfiles.captureEntry(openTrade.id, {
+        symbol,
+        name: meta.name,
+        contract: openTrade.contract,
+        contractLabel: openTrade.contractLabel,
+        entryCondition: openTrade.entryCondition,
+        regime: regime.label,
+        psychology: psychologyKey(psychology),
+        scoreBand: scoreBandOf(c?.opportunity ?? 0),
+        engines: (c?.supports ?? []).map((e) => e.engine),
+        at: openTrade.openedAt,
+      });
+    }
+    marketProfiles.sync();
 
     // Independent entry-condition discovery: every rule is shadow-tested on
     // this market's own contracts, partitioned strictly by symbol.
