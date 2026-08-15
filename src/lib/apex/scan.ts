@@ -7,6 +7,7 @@ import { entryLab } from "./entry-conditions";
 import { apexSimulator, engineAgreement, simulatorAdjustment } from "./simulator";
 import { assessClearance } from "./clearance";
 import { classifyEvidence } from "./evidence-status";
+import { marketProfiles } from "./profiles";
 import type { MarketIntel, RankedOpportunity, ScanResult } from "./types";
 import { PRIMARY_CONTRACTS } from "./types";
 
@@ -200,6 +201,67 @@ export function rankOpportunities(
         },
       ];
 
+      // ── Stage: LOSING-DIGIT EXPOSURE ─────────────────────────────────
+      const exposure = c.exposure ?? null;
+      const exposurePenalty = exposure
+        ? -Math.round(
+            (exposure.losingDigitExposure > 45 ? (exposure.losingDigitExposure - 45) * 0.22 : 0) * 10,
+          ) / 10
+        : 0;
+      factors.push({
+        label: "Losing-digit exposure",
+        points: exposurePenalty,
+        detail: exposure
+          ? exposure.summary
+          : "Losing-digit exposure not computed for this candidate.",
+      });
+
+      // ── Stage: SPECIAL DIGIT RISK (0/1/8/9) ──────────────────────────
+      const special = c.specialRisk ?? null;
+      const specialPenalty = special
+        ? -Math.round((special.exposureRisk > 50 ? (special.exposureRisk - 50) * 0.16 : 0) * 10) / 10
+        : 0;
+      factors.push({
+        label: "Special digit risk (0/1/8/9)",
+        points: specialPenalty,
+        detail: special ? special.summary : "Special digit monitor unavailable.",
+      });
+
+      // ── Stage: FLUCTUATION / STABILITY OF THE EVIDENCE ───────────────
+      const fluct = intel.fluctuation;
+      const fluctPenalty = fluct
+        ? -Math.round((fluct.score > 25 ? (fluct.score - 25) * 0.18 : -2) * 10) / 10
+        : 0;
+      factors.push({
+        label: "Fluctuation (calm-market preference)",
+        points: fluctPenalty,
+        detail: fluct ? fluct.summary : "Fluctuation not yet measurable.",
+      });
+
+      // ── Stage: DIGIT PSYCHOLOGY (hypothesis, capped influence) ───────
+      const psy = intel.psychology;
+      const pattern = psy ? (c.side === "OVER" ? psy.over : psy.under) : null;
+      const psyPoints = pattern
+        ? Math.round(
+            Math.max(-4, Math.min(4, ((pattern.score - 55) / 45) * 4 * (pattern.confidence / 100))) * 10,
+          ) / 10
+        : 0;
+      factors.push({
+        label: "Digit psychology configuration",
+        points: psyPoints,
+        detail: pattern
+          ? `${pattern.side} pattern ${pattern.score}/100 (confidence ${pattern.confidence}/100). ${pattern.supporting.length} supporting, ${pattern.contradictions.length} contradicting observation(s).`
+          : "Psychology engine has no reading for this market yet.",
+      });
+
+      // ── Stage: MARKET-SPECIFIC LEARNING (never inherited) ────────────
+      const learned = marketProfiles.prior(intel.symbol, c.label, c.theoretical);
+      factors.push({
+        label: "Market-specific learning",
+        points: learned.points,
+        detail: learned.detail,
+      });
+
       const invalidation = [
         `Danger rising above ${Math.min(100, Math.round(intel.danger + 12))} on this market`,
         `Losing-side pressure taking control on the ${c.label} losing digits`,
@@ -208,6 +270,12 @@ export function rankOpportunities(
         entry.best
           ? `Entry condition "${entry.best.label}" ceasing to trigger, or its expectancy turning negative`
           : "No validated entry condition emerging for this contract",
+        exposure && exposure.bursting.length
+          ? `Losing digit(s) ${exposure.bursting.join(", ")} continuing to burst`
+          : "A losing digit starting to burst (2+ prints in 10 ticks)",
+        intel.fluctuation && intel.fluctuation.state !== "CALM"
+          ? `Fluctuation rising above ${Math.min(100, intel.fluctuation.score + 15)}/100`
+          : "Fluctuation rising — the leading contract flickering between candidates",
         c.phase === "MATURE"
           ? "Edge decaying as the mature phase completes"
           : "Composite edge falling to zero or below",
@@ -223,7 +291,12 @@ export function rankOpportunities(
         agreementBonus +
         recentDelta +
         clearancePenalty +
-        confidenceAdjustment;
+        confidenceAdjustment +
+        exposurePenalty +
+        specialPenalty +
+        fluctPenalty +
+        psyPoints +
+        learned.points;
 
       ranked.push({
         rank: 0,
@@ -274,12 +347,17 @@ export function scanNow(
   } else if (!top.length) {
     verdict = "NONE";
     message = `NO CLEARED OPPORTUNITY. ${ranked.filter((r) => r.blocked).length} candidate(s) exist but are blocked by danger clearance.`;
-  } else if (top[0].score >= opts.opportunityThreshold) {
+  } else if (
+    top[0].score >= opts.opportunityThreshold &&
+    (top[0].intel.fluctuation?.state ?? "CALM") !== "CHAOTIC" &&
+    (top[0].contract.exposure?.state ?? "LOW") !== "SEVERE" &&
+    top[0].agreement !== "STRONG CONFLICT"
+  ) {
     verdict = "OPPORTUNITY";
     message = `${top[0].contract.label} on ${top[0].name} — clearance ${top[0].clearance.state}, evidence ${top[0].evidence.status}. Entry: ${top[0].entry?.best?.label ?? "immediate (no validated condition yet)"}.`;
   } else {
     verdict = "MODERATE";
-    message = `Best available candidate ${top[0].contract.label} on ${top[0].name} is only moderate (${top[0].score.toFixed(0)}/100, evidence ${top[0].evidence.status}, clearance ${top[0].clearance.state}).`;
+    message = `NO HIGH-QUALITY OPPORTUNITY. Best available candidate ${top[0].contract.label} on ${top[0].name} is only moderate (${top[0].score.toFixed(0)}/100, evidence ${top[0].evidence.status}, clearance ${top[0].clearance.state}).`;
   }
 
   return {
