@@ -28,6 +28,14 @@ import { ScoreRing, MetricBar } from "@/components/apex/ScoreRing";
 import { EvidenceList, SectionTitle } from "@/components/apex/EvidencePanel";
 import { EntryConditionLab, EntryConditionSummary } from "@/components/apex/EntryConditionLab";
 import {
+  PsychologyPanel,
+  SpecialDigitPanel,
+  FluctuationPanel,
+} from "@/components/apex/PsychologyPanel";
+import { ExposurePanel } from "@/components/apex/ExposurePanel";
+import { SimulatorWindows } from "@/components/apex/SimulatorWindows";
+import { LearningDashboard } from "@/components/apex/LearningDashboard";
+import {
   DEFAULT_EXECUTION,
   loadExecutionSettings,
   recordEntry,
@@ -226,6 +234,7 @@ function ApexPage() {
             <TabsTrigger value="markets">Market intelligence</TabsTrigger>
             <TabsTrigger value="simulator">Simulator</TabsTrigger>
             <TabsTrigger value="entry">Entry lab</TabsTrigger>
+            <TabsTrigger value="learning">Learning</TabsTrigger>
             <TabsTrigger value="execution">Execution &amp; journal</TabsTrigger>
           </TabsList>
 
@@ -248,6 +257,24 @@ function ApexPage() {
                     <ForwardProjectionPanel contract={best.contract} agreement={best.agreement} />
                   </div>
                 </div>
+
+                <div className="grid gap-5 xl:grid-cols-2">
+                  <PsychologyPanel intel={best.intel} />
+                  <div className="space-y-5">
+                    <SpecialDigitPanel intel={best.intel} />
+                    <FluctuationPanel intel={best.intel} />
+                  </div>
+                </div>
+
+                <ExposurePanel contract={best.contract} />
+
+                <SimulatorWindows
+                  symbol={best.symbol}
+                  name={best.name}
+                  contract={best.contract.id}
+                  contractLabel={best.contract.label}
+                  theoretical={best.contract.theoretical}
+                />
 
                 <WhyNotRunnerUp top={best} runners={(apex.scan?.top ?? apex.ranked).slice(1, 3)} />
 
@@ -278,6 +305,10 @@ function ApexPage() {
 
           <TabsContent value="entry" className="mt-5">
             <EntryConditionLab item={best ?? null} />
+          </TabsContent>
+
+          <TabsContent value="learning" className="mt-5">
+            <LearningDashboard />
           </TabsContent>
 
           <TabsContent value="execution" className="mt-5">
