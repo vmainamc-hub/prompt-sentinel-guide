@@ -99,6 +99,9 @@ function intel(symbol: string, lastDigit: number, name = symbol): MarketIntel {
     criticalReport: null,
     battle: null,
     deepTicks: 1000,
+    psychology: null,
+    specialDigits: null,
+    fluctuation: null,
   };
 }
 

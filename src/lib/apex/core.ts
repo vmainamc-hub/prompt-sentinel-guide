@@ -25,6 +25,11 @@ import { CONTRACT_SPECS, evaluateContract, winnersFor } from "./contracts";
 import { fingerprint, lookupAnalogue, observeAnalogue, observeCalibration } from "./memory";
 import { digitIntelligence } from "./digit-intel";
 import { barEngine } from "./bars";
+import { psychologyEngine, psychologyKey } from "./psychology";
+import { specialDigitRisk } from "./special-digits";
+import { losingDigitExposure } from "./exposure";
+import { fluctuationTracker } from "./fluctuation";
+import { marketProfiles, scoreBandOf } from "./profiles";
 import { criticalDigits } from "./critical";
 import { buildBattle } from "./battle";
 import { runEnsemble, type EnsembleResult } from "./ml";
@@ -280,6 +285,9 @@ class ApexCore {
         criticalReport: null,
         battle: null,
         deepTicks: 0,
+        psychology: null,
+        specialDigits: null,
+        fluctuation: null,
       });
       return;
     }

@@ -89,6 +89,9 @@ function intelStub(symbol: string, lastDigit: number, contracts: ContractEval[])
     criticalReport: null,
     battle: null,
     deepTicks: 1000,
+    psychology: null,
+    specialDigits: null,
+    fluctuation: null,
   };
 }
 
