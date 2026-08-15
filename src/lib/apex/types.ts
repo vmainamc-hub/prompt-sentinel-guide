@@ -258,7 +258,14 @@ export interface MarketIntel {
   battle: ContractBattle | null;
   /** Deep buffer length actually available to the digit engines. */
   deepTicks: number;
+  /** Observed Over / Under digit-psychology configuration (hypothesis layer). */
+  psychology: import("./psychology").PsychologyReport | null;
+  /** Market-level SPECIAL DIGIT RISK for 0/1/8/9. */
+  specialDigits: import("./special-digits").SpecialDigitReport | null;
+  /** FLUCTUATION_SCORE / STATE / SIGNAL_FLICKER_RATE for this market. */
+  fluctuation: import("./fluctuation").FluctuationReport | null;
 }
+
 
 
 export interface RankedOpportunity {
