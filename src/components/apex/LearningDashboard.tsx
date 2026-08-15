@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { SectionTitle } from "@/components/apex/EvidencePanel";
 import { marketProfiles, type Bucket, type MarketProfile } from "@/lib/apex/profiles";
-import { engineEffectiveness } from "@/lib/apex/engine-effectiveness";
+import { engineEffectiveness, type EngineRecord } from "@/lib/apex/engine-effectiveness";
 import { calibrationTable } from "@/lib/apex/memory";
 
 const card = "rounded-xl border border-border bg-card p-4";
@@ -112,7 +112,7 @@ export function LearningDashboard() {
 
   const markets = marketProfiles.all();
   const global = marketProfiles.global();
-  const engines = engineEffectiveness.report();
+  const engines: EngineRecord[] = engineEffectiveness();
   const calibration = calibrationTable();
 
   return (
@@ -151,31 +151,34 @@ export function LearningDashboard() {
               <thead>
                 <tr className="text-left uppercase tracking-wider text-muted-foreground">
                   <th className="py-1 pr-3">Engine</th>
-                  <th className="py-1 pr-3">Support N</th>
-                  <th className="py-1 pr-3">Win rate after support</th>
-                  <th className="py-1 pr-3">Conflict N</th>
-                  <th className="py-1 pr-3">Win rate after conflict</th>
-                  <th className="py-1">Incremental value</th>
+                  <th className="py-1 pr-3">Resolved</th>
+                  <th className="py-1 pr-3">Win rate</th>
+                  <th className="py-1 pr-3">Expectancy</th>
+                  <th className="py-1 pr-3">Trend</th>
+                  <th className="py-1 pr-3">Effect</th>
+                  <th className="py-1">Influence</th>
                 </tr>
               </thead>
               <tbody className="font-mono">
                 {engines.map((e) => (
                   <tr key={e.engine} className="border-t border-border/60">
                     <td className="py-1 pr-3 text-foreground">{e.engine}</td>
-                    <td className="py-1 pr-3">{e.supportN}</td>
-                    <td className="py-1 pr-3">
-                      {e.supportN ? `${(e.supportRate * 100).toFixed(1)}%` : "—"}
-                    </td>
-                    <td className="py-1 pr-3">{e.conflictN}</td>
-                    <td className="py-1 pr-3">
-                      {e.conflictN ? `${(e.conflictRate * 100).toFixed(1)}%` : "—"}
+                    <td className="py-1 pr-3">{e.n}</td>
+                    <td className="py-1 pr-3">{e.n ? `${(e.winRate * 100).toFixed(1)}%` : "—"}</td>
+                    <td
+                      className="py-1 pr-3"
+                      style={{ color: e.expectancy >= 0 ? "var(--bull)" : "var(--bear)" }}
+                    >
+                      {e.n ? `${e.expectancy >= 0 ? "+" : ""}${e.expectancy.toFixed(3)}` : "—"}
                     </td>
                     <td
-                      className="py-1"
-                      style={{ color: e.lift >= 0 ? "var(--bull)" : "var(--bear)" }}
+                      className="py-1 pr-3"
+                      style={{ color: e.deteriorationPp >= 0 ? "var(--bull)" : "var(--bear)" }}
                     >
-                      {e.validated ? `${(e.lift * 100).toFixed(1)}pp` : "not yet validated"}
+                      {e.n ? `${e.deteriorationPp >= 0 ? "+" : ""}${e.deteriorationPp.toFixed(1)}pp` : "—"}
                     </td>
+                    <td className="py-1 pr-3">{e.effect}</td>
+                    <td className="py-1">{e.influence.toFixed(2)}×</td>
                   </tr>
                 ))}
               </tbody>
@@ -193,8 +196,10 @@ export function LearningDashboard() {
         {calibration.length ? (
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
             {calibration.map((c) => (
-              <div key={c.band} className="rounded-md border border-border/60 px-2 py-1.5">
-                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{c.band}</div>
+              <div key={c.decile} className="rounded-md border border-border/60 px-2 py-1.5">
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                  {c.decile * 10}-{c.decile * 10 + 9}
+                </div>
                 <div className="font-mono text-[11px] text-foreground">
                   {(c.rate * 100).toFixed(1)}% (N={c.n})
                 </div>
