@@ -213,7 +213,14 @@ export interface ContractEval {
   threatPenalty: number;
   /** Operator-facing alerts raised for this contract. */
   alerts: string[];
+
+  // ---- Losing-side risk layers (attached by the core after evaluation) ----
+  /** LOSING_DIGIT_RISK / LOSING_DIGIT_EXPOSURE for this contract's losing digits. */
+  exposure?: import("./exposure").ExposureReport | null;
+  /** SPECIAL DIGIT RISK (0/1/8/9) scoped to this contract's losing side. */
+  specialRisk?: import("./special-digits").SpecialDigitReport | null;
 }
+
 
 
 export interface MarketIntel {
